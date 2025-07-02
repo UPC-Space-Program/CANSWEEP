@@ -1,0 +1,7 @@
+/Debug/
+/build/
+/.settings/
+/.cproject
+.project
+*.launch
+*.log
