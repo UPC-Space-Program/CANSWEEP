@@ -13,6 +13,7 @@
   * in the root directory of this software component.
   * If no LICENSE file comes with this software, it is provided AS-IS.
   *
+  * This code belongs to the development of the CANSWEEP V1 board
   ******************************************************************************
   */
 /* USER CODE END Header */
