@@ -57,6 +57,14 @@ void Error_Handler(void);
 /* USER CODE END EFP */
 
 /* Private defines -----------------------------------------------------------*/
+#define LSWITCH_OUT_Pin GPIO_PIN_0
+#define LSWITCH_OUT_GPIO_Port GPIOC
+#define nSLEEP_Pin GPIO_PIN_0
+#define nSLEEP_GPIO_Port GPIOA
+#define nFAULT_Pin GPIO_PIN_1
+#define nFAULT_GPIO_Port GPIOA
+#define nSTALL_Pin GPIO_PIN_2
+#define nSTALL_GPIO_Port GPIOA
 
 /* USER CODE BEGIN Private defines */
 
