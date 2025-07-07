@@ -65,6 +65,30 @@ void Error_Handler(void);
 #define nFAULT_GPIO_Port GPIOA
 #define nSTALL_Pin GPIO_PIN_2
 #define nSTALL_GPIO_Port GPIOA
+#define VBAT_I_OUT_Pin GPIO_PIN_4
+#define VBAT_I_OUT_GPIO_Port GPIOC
+#define _5V_f_Pin GPIO_PIN_1
+#define _5V_f_GPIO_Port GPIOB
+#define _3v3_f_Pin GPIO_PIN_2
+#define _3v3_f_GPIO_Port GPIOB
+#define PH_B_f_Pin GPIO_PIN_12
+#define PH_B_f_GPIO_Port GPIOB
+#define PH_A_f_Pin GPIO_PIN_13
+#define PH_A_f_GPIO_Port GPIOB
+#define VBUS_f_Pin GPIO_PIN_14
+#define VBUS_f_GPIO_Port GPIOB
+#define DIR_AIN2_Pin GPIO_PIN_15
+#define DIR_AIN2_GPIO_Port GPIOB
+#define STEP_AIN1_Pin GPIO_PIN_10
+#define STEP_AIN1_GPIO_Port GPIOA
+#define BIN1_Pin GPIO_PIN_15
+#define BIN1_GPIO_Port GPIOA
+#define BIN2_Pin GPIO_PIN_10
+#define BIN2_GPIO_Port GPIOC
+#define ENCODER_PULSE1_Pin GPIO_PIN_12
+#define ENCODER_PULSE1_GPIO_Port GPIOC
+#define ENCODER_PULSE2_Pin GPIO_PIN_3
+#define ENCODER_PULSE2_GPIO_Port GPIOB
 
 /* USER CODE BEGIN Private defines */
 
