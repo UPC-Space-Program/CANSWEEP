@@ -49,6 +49,8 @@ extern "C" {
 
 /* USER CODE END EM */
 
+void HAL_TIM_MspPostInit(TIM_HandleTypeDef *htim);
+
 /* Exported functions prototypes ---------------------------------------------*/
 void Error_Handler(void);
 
@@ -57,8 +59,16 @@ void Error_Handler(void);
 /* USER CODE END EFP */
 
 /* Private defines -----------------------------------------------------------*/
+#define RESET_BUTTON_Pin GPIO_PIN_10
+#define RESET_BUTTON_GPIO_Port GPIOG
 #define LSWITCH_OUT_Pin GPIO_PIN_0
 #define LSWITCH_OUT_GPIO_Port GPIOC
+#define RESET_DRV_Pin GPIO_PIN_1
+#define RESET_DRV_GPIO_Port GPIOC
+#define MOTOR_LEFT_Pin GPIO_PIN_2
+#define MOTOR_LEFT_GPIO_Port GPIOC
+#define MOTOR_RIGHT_Pin GPIO_PIN_3
+#define MOTOR_RIGHT_GPIO_Port GPIOC
 #define nSLEEP_Pin GPIO_PIN_0
 #define nSLEEP_GPIO_Port GPIOA
 #define nFAULT_Pin GPIO_PIN_1
