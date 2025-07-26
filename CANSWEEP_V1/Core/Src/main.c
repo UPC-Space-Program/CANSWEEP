@@ -13,7 +13,7 @@
   * in the root directory of this software component.
   * If no LICENSE file comes with this software, it is provided AS-IS.
   *
-  * This code belongs to the development of the CANSWEEP V1 board
+  * This code belongs to the development of the CANSWEEP V1 board kkk
   ******************************************************************************
   */
 /* USER CODE END Header */
@@ -49,6 +49,7 @@ ADC_HandleTypeDef hadc4;
 FDCAN_HandleTypeDef hfdcan2;
 
 I2C_HandleTypeDef hi2c1;
+I2C_HandleTypeDef hi2c1;
 
 SPI_HandleTypeDef hspi1;
 
@@ -60,7 +61,8 @@ TIM_HandleTypeDef htim8;
 PCD_HandleTypeDef hpcd_USB_FS;
 
 /* USER CODE BEGIN PV */
-
+TIM_HandleTypeDef htim1;
+TIM_HandleTypeDef htim8;
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -79,6 +81,13 @@ static void MX_TIM2_Init(void);
 static void MX_TIM5_Init(void);
 static void MX_TIM8_Init(void);
 /* USER CODE BEGIN PFP */
+
+static void MX_TIM1_Init(void);
+static void MX_TIM8_Init(void);
+void DRV8711_WriteRegister(uint8_t address, uint16_t data);
+uint16_t DRV8711_ReadRegister(uint8_t address);
+void DRV8711_Init(void);
+void Motor_Step(uint32_t steps, uint8_t direction, uint32_t speed);
 
 /* USER CODE END PFP */
 
@@ -130,6 +139,11 @@ int main(void)
   MX_TIM8_Init();
   /* USER CODE BEGIN 2 */
 
+  MX_TIM1_Init();
+  MX_TIM8_Init();
+  // Inicializar DRV8711
+  DRV8711_Init();
+
   /* USER CODE END 2 */
 
   /* Infinite loop */
@@ -137,7 +151,13 @@ int main(void)
   while (1)
   {
     /* USER CODE END WHILE */
+      // Mover 200 pasos en dirección forward a 500 Hz
+      Motor_Step(200, 1, 500);
+      HAL_Delay(1000);
 
+      // Mover 200 pasos en dirección reverse a 1000 Hz
+      Motor_Step(200, 0, 1000);
+      HAL_Delay(1000);
     /* USER CODE BEGIN 3 */
   }
   /* USER CODE END 3 */
@@ -902,6 +922,72 @@ static void MX_GPIO_Init(void)
 }
 
 /* USER CODE BEGIN 4 */
+// Inicialización del DRV8711
+void DRV8711_Init(void) {
+    // Habilitar el chip
+    HAL_GPIO_WritePin(DRV8711_nSLEEP_PORT, DRV8711_nSLEEP_PIN, GPIO_PIN_SET);
+
+    // Configuración de registros (ajusta según tus necesidades)
+    DRV8711_WriteRegister(0x00, 0x0C10); // CTRL: 1/8 paso, enable motor
+    DRV8711_WriteRegister(0x01, 0x001F); // TORQUE: corriente máxima
+    DRV8711_WriteRegister(0x02, 0x0300); // OFF: 3us off time
+    DRV8711_WriteRegister(0x03, 0x0000); // BLANK: 0us blank time
+    DRV8711_WriteRegister(0x04, 0x000A); // DECAY: mixed decay, 10us
+    DRV8711_WriteRegister(0x05, 0x0101); // STALL: disable stall detection
+    DRV8711_WriteRegister(0x06, 0x0000); // DRIVE: PWM 1x, 100% duty
+    DRV8711_WriteRegister(0x07, 0x0000); // STATUS: clear faults
+}
+
+// Escribir registro del DRV8711
+void DRV8711_WriteRegister(uint8_t address, uint16_t data) {
+    uint8_t txData[2];
+
+    // Formato del comando: 0 = write, bits 6-1 = dirección, bit 7 = 0
+    txData[0] = (address << 1) & 0x7E;
+    txData[1] = (data >> 8) & 0xFF; // MSB primero u
+
+    HAL_GPIO_WritePin(GPIOA, GPIO_PIN_4, GPIO_PIN_RESET); // CS bajo
+    HAL_SPI_Transmit(&hspi1, txData, 2, 100);
+    HAL_GPIO_WritePin(GPIOA, GPIO_PIN_4, GPIO_PIN_SET); // CS alto
+}
+
+// Leer registro del DRV8711
+uint16_t DRV8711_ReadRegister(uint8_t address) {
+    uint8_t txData[2], rxData[2];
+
+    // Formato del comando: 1 = read, bits 6-1 = dirección, bit 7 = 0
+    txData[0] = ((address << 1) & 0x7E) | 0x01;
+    txData[1] = 0x00;
+
+    HAL_GPIO_WritePin(GPIOA, GPIO_PIN_4, GPIO_PIN_RESET); // CS bajo
+    HAL_SPI_TransmitReceive(&hspi1, txData, rxData, 2, 100);
+    HAL_GPIO_WritePin(GPIOA, GPIO_PIN_4, GPIO_PIN_SET); // CS alto
+
+    return (rxData[1] << 8) | rxData[0];
+}
+
+// Control del motor
+void Motor_Step(uint32_t steps, uint8_t direction, uint32_t speed) {
+    // Establecer dirección
+    HAL_GPIO_WritePin(DRV8711_DIR_PORT, DRV8711_DIR_PIN, direction ? GPIO_PIN_SET : GPIO_PIN_RESET);
+
+    // Configurar temporización de pasos
+    htim1.Instance->ARR = (SystemCoreClock / speed) - 1;
+    htim1.Instance->CCR3 = (SystemCoreClock / speed) / 2;
+
+    // Habilitar PWM para pasos
+    HAL_TIM_PWM_Start(&htim1, TIM_CHANNEL_3);
+
+    // Generar los pasos
+    for(uint32_t i = 0; i < steps; i++) {
+        // Esperar un periodo completo (el step ocurre en el flanco de subida)
+        while(!(htim1.Instance->SR & TIM_SR_UIF));
+        htim1.Instance->SR &= ~TIM_SR_UIF;
+    }
+
+    // Detener PWM
+    HAL_TIM_PWM_Stop(&htim1, TIM_CHANNEL_3);
+}
 
 /* USER CODE END 4 */
 
