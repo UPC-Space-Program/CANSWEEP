@@ -22,17 +22,20 @@
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
-
+#include <string.h>
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
 /* USER CODE BEGIN PTD */
+FDCAN_TxHeaderTypeDef TxHeader;
+FDCAN_RxHeaderTypeDef RxHeader;
 
 /* USER CODE END PTD */
 
 /* Private define ------------------------------------------------------------*/
 /* USER CODE BEGIN PD */
-
+#define AS5600_ADDR 0x6C  // 7-bit address << 1
+#define ANGLE_MSB_REG 0x0E
 /* USER CODE END PD */
 
 /* Private macro -------------------------------------------------------------*/
@@ -60,8 +63,11 @@ TIM_HandleTypeDef htim8;
 PCD_HandleTypeDef hpcd_USB_FS;
 
 /* USER CODE BEGIN PV */
-TIM_HandleTypeDef htim1;
-TIM_HandleTypeDef htim8;
+uint8_t TxData[8];
+uint8_t RxData[8];
+
+volatile uint32_t pwm_rising = 0;
+volatile uint32_t pwm_width = 0;
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -79,8 +85,8 @@ static void MX_TIM1_Init(void);
 static void MX_TIM2_Init(void);
 static void MX_TIM5_Init(void);
 static void MX_TIM8_Init(void);
-/* USER CODE BEGIN PFP */
 
+/* USER CODE BEGIN PFP */
 static void MX_TIM1_Init(void);
 static void MX_TIM8_Init(void);
 void DRV8711_WriteRegister(uint8_t address, uint16_t data);
@@ -88,11 +94,40 @@ uint16_t DRV8711_ReadRegister(uint8_t address);
 void DRV8711_Init(void);
 void Motor_Step(uint32_t steps, uint8_t direction, uint32_t speed);
 
+FDCAN_HandleTypeDef hfdcan2;
 /* USER CODE END PFP */
 
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
+uint16_t ReadAS5600Angle()
+{
+    uint8_t angle_data[2];
+    HAL_I2C_Mem_Read(&hi2c1, AS5600_ADDR, ANGLE_MSB_REG, I2C_MEMADD_SIZE_8BIT, angle_data, 2, HAL_MAX_DELAY);
+    uint16_t angle = ((angle_data[0] << 8) | angle_data[1]) & 0x0FFF;  // 12-bit mask
+    return angle;
+}
 
+void HAL_TIM_IC_CaptureCallback(TIM_HandleTypeDef *htim)
+{
+    if (htim->Channel == HAL_TIM_ACTIVE_CHANNEL_2)
+    {
+        uint32_t capture = HAL_TIM_ReadCapturedValue(htim, TIM_CHANNEL_2);
+
+        static uint8_t last_edge = 0;
+        static uint32_t pwm_rising = 0;
+        extern volatile uint32_t pwm_width;
+
+        if (!last_edge) {
+            pwm_rising = capture;
+            __HAL_TIM_SET_CAPTUREPOLARITY(htim, TIM_CHANNEL_2, TIM_INPUTCHANNELPOLARITY_FALLING);
+            last_edge = 1;
+        } else {
+            pwm_width = (capture >= pwm_rising) ? (capture - pwm_rising) : ((0xFFFFFFFF - pwm_rising) + capture);
+            __HAL_TIM_SET_CAPTUREPOLARITY(htim, TIM_CHANNEL_2, TIM_INPUTCHANNELPOLARITY_RISING);
+            last_edge = 0;
+        }
+    }
+}
 /* USER CODE END 0 */
 
 /**
@@ -144,15 +179,44 @@ int main(void)
   DRV8711_Init();
 
   //  Inicializar encoder
-
+  HAL_TIM_IC_Start_IT(&htim5, TIM_CHANNEL_2);  // Start input capture
   //  Inicializar CAN
+  // Start CAN
+  HAL_FDCAN_Start(&hfdcan2);
 
+  // Activate notification for RX FIFO 0
+  HAL_FDCAN_ActivateNotification(&hfdcan2, FDCAN_IT_RX_FIFO0_NEW_MESSAGE, 0);
+
+  // Setup TX Header
+  TxHeader.Identifier = 0x123;
+  TxHeader.IdType = FDCAN_STANDARD_ID;
+  TxHeader.TxFrameType = FDCAN_DATA_FRAME;
+  TxHeader.DataLength = FDCAN_DLC_BYTES_8;
+  TxHeader.ErrorStateIndicator = FDCAN_ESI_ACTIVE;
+  TxHeader.BitRateSwitch = FDCAN_BRS_OFF;
+  TxHeader.FDFormat = FDCAN_CLASSIC_CAN;
+  TxHeader.TxEventFifoControl = FDCAN_NO_TX_EVENTS;
+  TxHeader.MessageMarker = 0;
+
+  // Transmit example
+  strcpy((char*)TxData, "HELLO");
+  HAL_FDCAN_AddMessageToTxFifoQ(&hfdcan2, &TxHeader, TxData);
   /* USER CODE END 2 */
 
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
   while (1)
   {
+	  // CAN send commands test
+	  	  HAL_Delay(1000);
+	      // Transmit every second
+	      strcpy((char*)TxData, "PING");
+	      HAL_FDCAN_AddMessageToTxFifoQ(&hfdcan2, &TxHeader, TxData);
+
+	  // Leer encoder
+	  uint16_t current_angle = ReadAS5600Angle();
+	  float angle_pwm_deg = ((float)pwm_width - 1000.0f) * 0.36f;
+
 	  // Controlar motor usando la variable de posicion del encoder
 	  // Enviar feedback
 
@@ -932,6 +996,15 @@ static void MX_GPIO_Init(void)
 }
 
 /* USER CODE BEGIN 4 */
+void HAL_FDCAN_RxFifo0Callback(FDCAN_HandleTypeDef *hfdcan, uint32_t FilterMatchIndex)
+{
+  HAL_FDCAN_GetRxMessage(hfdcan, FDCAN_RX_FIFO0, &RxHeader, RxData);
+
+  // Process received message
+  // Example: echo back the same data
+  HAL_FDCAN_AddMessageToTxFifoQ(hfdcan, &TxHeader, RxData);
+}
+
 // Inicialización del DRV8711
 void DRV8711_Init(void) {
     // Habilitar el chip
