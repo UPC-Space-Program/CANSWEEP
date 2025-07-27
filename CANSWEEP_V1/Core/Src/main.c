@@ -49,7 +49,6 @@ ADC_HandleTypeDef hadc4;
 FDCAN_HandleTypeDef hfdcan2;
 
 I2C_HandleTypeDef hi2c1;
-I2C_HandleTypeDef hi2c1;
 
 SPI_HandleTypeDef hspi1;
 
@@ -144,20 +143,21 @@ int main(void)
   // Inicializar DRV8711
   DRV8711_Init();
 
+  //  Inicializar encoder
+
+  //  Inicializar CAN
+
   /* USER CODE END 2 */
 
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
   while (1)
   {
-    /* USER CODE END WHILE */
-      // Mover 200 pasos en dirección forward a 500 Hz
-      Motor_Step(200, 1, 500);
-      HAL_Delay(1000);
+	  // Controlar motor usando la variable de posicion del encoder
+	  // Enviar feedback
 
-      // Mover 200 pasos en dirección reverse a 1000 Hz
-      Motor_Step(200, 0, 1000);
-      HAL_Delay(1000);
+    /* USER CODE END WHILE */
+
     /* USER CODE BEGIN 3 */
   }
   /* USER CODE END 3 */
@@ -891,6 +891,9 @@ static void MX_GPIO_Init(void)
   /*Configure GPIO pin Output Level */
   HAL_GPIO_WritePin(nSLEEP_GPIO_Port, nSLEEP_Pin, GPIO_PIN_RESET);
 
+  /*Configure GPIO pin Output Level */
+  HAL_GPIO_WritePin(DIR_AIN2_GPIO_Port, DIR_AIN2_Pin, GPIO_PIN_RESET);
+
   /*Configure GPIO pin : RESET_BUTTON_Pin */
   GPIO_InitStruct.Pin = RESET_BUTTON_Pin;
   GPIO_InitStruct.Mode = GPIO_MODE_INPUT;
@@ -915,6 +918,13 @@ static void MX_GPIO_Init(void)
   GPIO_InitStruct.Mode = GPIO_MODE_INPUT;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
+
+  /*Configure GPIO pin : DIR_AIN2_Pin */
+  GPIO_InitStruct.Pin = DIR_AIN2_Pin;
+  GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
+  GPIO_InitStruct.Pull = GPIO_NOPULL;
+  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
+  HAL_GPIO_Init(DIR_AIN2_GPIO_Port, &GPIO_InitStruct);
 
   /* USER CODE BEGIN MX_GPIO_Init_2 */
 
