@@ -22,20 +22,20 @@
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
-#include <string.h>
+#include <string.h> //Se incluye para poder usar funciones de manipulación de cadenas, como memcpy(), strcmp(), etc.
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
 /* USER CODE BEGIN PTD */
-FDCAN_TxHeaderTypeDef TxHeader;
-FDCAN_RxHeaderTypeDef RxHeader;
+FDCAN_TxHeaderTypeDef TxHeader; // Estructura para definir la cabecera del mensaje CAN que vamos a enviar
+FDCAN_RxHeaderTypeDef RxHeader; // Estructura para almacenar la cabecera del mensaje CAN recibido
 
 /* USER CODE END PTD */
 
 /* Private define ------------------------------------------------------------*/
 /* USER CODE BEGIN PD */
-#define AS5600_ADDR 0x6C  // 7-bit address << 1
-#define ANGLE_MSB_REG 0x0E
+#define AS5600_ADDR 0x6C  // 7-bit address << 1 (Dirección I2C del encoder AS5600 (7 bits << 1 = 0x6C))
+#define ANGLE_MSB_REG 0x0E  // Dirección del registro de ángulo del AS5600
 /* USER CODE END PD */
 
 /* Private macro -------------------------------------------------------------*/
@@ -63,11 +63,11 @@ TIM_HandleTypeDef htim8;
 PCD_HandleTypeDef hpcd_USB_FS;
 
 /* USER CODE BEGIN PV */
-uint8_t TxData[8];
-uint8_t RxData[8];
+uint8_t TxData[8]; // Buffer para datos CAN a transmitir (máximo 8 bytes)
+uint8_t RxData[8]; // Buffer para datos CAN recibidos
 
-volatile uint32_t pwm_rising = 0;
-volatile uint32_t pwm_width = 0;
+volatile uint32_t pwm_rising = 0; // Marca de tiempo del flanco de subida del pulso del encoder
+volatile uint32_t pwm_width = 0; // Duración del pulso (ancho), calculado con input capture
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -87,26 +87,30 @@ static void MX_TIM5_Init(void);
 static void MX_TIM8_Init(void);
 
 /* USER CODE BEGIN PFP */
-static void MX_TIM1_Init(void);
-static void MX_TIM8_Init(void);
+
+// Funciones de control del driver DRV8711
 void DRV8711_WriteRegister(uint8_t address, uint16_t data);
 uint16_t DRV8711_ReadRegister(uint8_t address);
 void DRV8711_Init(void);
 void Motor_Step(uint32_t steps, uint8_t direction, uint32_t speed);
 
-FDCAN_HandleTypeDef hfdcan2;
 /* USER CODE END PFP */
 
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
+
+// Función para leer el ángulo actual del encoder AS5600
 uint16_t ReadAS5600Angle()
 {
     uint8_t angle_data[2];
     HAL_I2C_Mem_Read(&hi2c1, AS5600_ADDR, ANGLE_MSB_REG, I2C_MEMADD_SIZE_8BIT, angle_data, 2, HAL_MAX_DELAY);
+    // ^ Lectura de 2 bytes desde el registro ANGLE_MSB_REG del AS5600 vía I2C
     uint16_t angle = ((angle_data[0] << 8) | angle_data[1]) & 0x0FFF;  // 12-bit mask
+    // ^ Combina los dos bytes y aplica máscara de 12 bits
     return angle;
 }
 
+// Callback que se ejecuta cuando se captura un flanco en el pin del encoder (TIM5_CH2)
 void HAL_TIM_IC_CaptureCallback(TIM_HandleTypeDef *htim)
 {
     if (htim->Channel == HAL_TIM_ACTIVE_CHANNEL_2)
@@ -173,21 +177,19 @@ int main(void)
   MX_TIM8_Init();
   /* USER CODE BEGIN 2 */
 
-  MX_TIM1_Init();
-  MX_TIM8_Init();
   // Inicializar DRV8711
   DRV8711_Init();
 
-  //  Inicializar encoder
+  //  Inicializar encoder, inicio del timer en modo captura por interrupción para leer el pulso del encoder
   HAL_TIM_IC_Start_IT(&htim5, TIM_CHANNEL_2);  // Start input capture
+
   //  Inicializar CAN
-  // Start CAN
-  HAL_FDCAN_Start(&hfdcan2);
+  HAL_FDCAN_Start(&hfdcan2); // Se inicia la periferia CAN
 
   // Activate notification for RX FIFO 0
-  HAL_FDCAN_ActivateNotification(&hfdcan2, FDCAN_IT_RX_FIFO0_NEW_MESSAGE, 0);
+  HAL_FDCAN_ActivateNotification(&hfdcan2, FDCAN_IT_RX_FIFO0_NEW_MESSAGE, 0); // Activación de interrupciones por nuevos mensajes recibidos en RX FIFO0
 
-  // Setup TX Header
+  // Setup TX Header for CAN messages
   TxHeader.Identifier = 0x123;
   TxHeader.IdType = FDCAN_STANDARD_ID;
   TxHeader.TxFrameType = FDCAN_DATA_FRAME;
@@ -200,7 +202,7 @@ int main(void)
 
   // Transmit example
   strcpy((char*)TxData, "HELLO");
-  HAL_FDCAN_AddMessageToTxFifoQ(&hfdcan2, &TxHeader, TxData);
+  HAL_FDCAN_AddMessageToTxFifoQ(&hfdcan2, &TxHeader, TxData); // Copia el string "HELLO" al buffer TxData
   /* USER CODE END 2 */
 
   /* Infinite loop */
@@ -208,17 +210,37 @@ int main(void)
   while (1)
   {
 	  // CAN send commands test
-	  	  HAL_Delay(1000);
-	      // Transmit every second
-	      strcpy((char*)TxData, "PING");
-	      HAL_FDCAN_AddMessageToTxFifoQ(&hfdcan2, &TxHeader, TxData);
+	  strcpy((char*)TxData, "PING");
+	  HAL_FDCAN_AddMessageToTxFifoQ(&hfdcan2, &TxHeader, TxData);
 
-	  // Leer encoder
-	  uint16_t current_angle = ReadAS5600Angle();
-	  float angle_pwm_deg = ((float)pwm_width - 1000.0f) * 0.36f;
+	  // Lectura de ángulo del encoder vía I2C
+	  // uint16_t current_angle = ReadAS5600Angle();
+	  // Conversión del ancho de pulso a grados (asumiendo mapeo entre 1000 y 2000us)
+	  // float angle_pwm_deg = ((float)pwm_width - 1000.0f) * 0.36f;
+
+	  // Read Encoder and transform raw data to degrees
+	  uint16_t raw_angle = ReadAS5600Angle(); // Lee valor crudo del AS5600
+	  float angle_deg = (raw_angle * 360.0f) / 4096.0f; // Convierte a grados
+
+	  float target_angle = 180.0f;
 
 	  // Controlar motor usando la variable de posicion del encoder
+	    if (angle_deg < target_angle - 1 || angle_deg > target_angle + 1)
+	    {
+	        Motor_Step(1, 1, 1000); // Paso hacia adelante a 1000 pasos/s
+	    }
+	    else
+	    {
+	        //printf("Objetivo alcanzado: %.2f°\r\n", angle_deg);
+	        break; // Salimos del bucle
+	    }
+
 	  // Enviar feedback
+		uint8_t can_data[8] = {0}; // clean buffer
+		memcpy(can_data, &angle_deg, sizeof(float)); // Copiar float (4 bytes) al buffer CAN
+
+		HAL_FDCAN_AddMessageToTxFifoQ(&hfdcan2, &TxHeader, can_data);
+
 
     /* USER CODE END WHILE */
 
@@ -996,9 +1018,10 @@ static void MX_GPIO_Init(void)
 }
 
 /* USER CODE BEGIN 4 */
+// Callback al recibir mensajes CAN
 void HAL_FDCAN_RxFifo0Callback(FDCAN_HandleTypeDef *hfdcan, uint32_t FilterMatchIndex)
 {
-  HAL_FDCAN_GetRxMessage(hfdcan, FDCAN_RX_FIFO0, &RxHeader, RxData);
+  HAL_FDCAN_GetRxMessage(hfdcan, FDCAN_RX_FIFO0, &RxHeader, RxData); // Recibe mensaje
 
   // Process received message
   // Example: echo back the same data
@@ -1008,7 +1031,7 @@ void HAL_FDCAN_RxFifo0Callback(FDCAN_HandleTypeDef *hfdcan, uint32_t FilterMatch
 // Inicialización del DRV8711
 void DRV8711_Init(void) {
     // Habilitar el chip
-    HAL_GPIO_WritePin(DRV8711_nSLEEP_PORT, DRV8711_nSLEEP_PIN, GPIO_PIN_SET);
+    HAL_GPIO_WritePin(DRV8711_nSLEEP_PORT, DRV8711_nSLEEP_PIN, GPIO_PIN_SET); // Activa el chip
 
     // Configuración de registros (ajusta según tus necesidades)
     DRV8711_WriteRegister(0x00, 0x0C10); // CTRL: 1/8 paso, enable motor
