@@ -1046,30 +1046,39 @@ void DRV8711_Init(void) {
 
 // Escribir registro del DRV8711
 void DRV8711_WriteRegister(uint8_t address, uint16_t data) {
-    uint8_t txData[2];
+	// Formato SPI de 16 bits:
+	// [15]    [14:12]    [11:0]
+	// R/W=0   A2,A1,A0   D11-D0
+	// Write   Address    12-bit Data
 
-    // Formato del comando: 0 = write, bits 6-1 = dirección, bit 7 = 0
-    txData[0] = (address << 1) & 0x7E;
-    txData[1] = (data >> 8) & 0xFF; // MSB primero u
+	uint16_t cmd = ((address & 0x07) << 12) | (data & 0xFFF);
+	uint8_t tx[2] = {cmd >> 8, cmd & 0xFF};  // MSB first
 
-    HAL_GPIO_WritePin(GPIOA, GPIO_PIN_4, GPIO_PIN_RESET); // CS bajo
-    HAL_SPI_Transmit(&hspi1, txData, 2, 100);
-    HAL_GPIO_WritePin(GPIOA, GPIO_PIN_4, GPIO_PIN_SET); // CS alto
+	HAL_GPIO_WritePin(GPIOA, GPIO_PIN_4, GPIO_PIN_RESET);
+	HAL_SPI_Transmit(&hspi1, tx, 2, 100);
+	HAL_GPIO_WritePin(GPIOA, GPIO_PIN_4, GPIO_PIN_SET);
 }
 
 // Leer registro del DRV8711
 uint16_t DRV8711_ReadRegister(uint8_t address) {
-    uint8_t txData[2], rxData[2];
+	// Formato de transmisión (SDATI):
+	// TX: [15]    [14:12]    [11:0]
+	//     R/W=1   A2,A1,A0   Don't care
+	//
+	// Formato de recepción (SDATO):
+	// RX: [15:12]    [11:0]
+	//     Undefined  D11-D0 (datos del registro)
 
-    // Formato del comando: 1 = read, bits 6-1 = dirección, bit 7 = 0
-    txData[0] = ((address << 1) & 0x7E) | 0x01;
-    txData[1] = 0x00;
+	uint16_t cmd = 0x8000 | ((address & 0x07) << 12);
+	uint8_t tx[2] = {cmd >> 8, cmd & 0xFF};
+	uint8_t rx[2];
 
-    HAL_GPIO_WritePin(GPIOA, GPIO_PIN_4, GPIO_PIN_RESET); // CS bajo
-    HAL_SPI_TransmitReceive(&hspi1, txData, rxData, 2, 100);
-    HAL_GPIO_WritePin(GPIOA, GPIO_PIN_4, GPIO_PIN_SET); // CS alto
+	HAL_GPIO_WritePin(GPIOA, GPIO_PIN_4, GPIO_PIN_RESET);
+	HAL_SPI_TransmitReceive(&hspi1, tx, rx, 2, 100);
+	HAL_GPIO_WritePin(GPIOA, GPIO_PIN_4, GPIO_PIN_SET);
 
-    return (rxData[1] << 8) | rxData[0];
+	// Los 12 bits de datos vienen en los bits [11:0] de la respuesta
+	return ((rx[0] << 8) | rx[1]) & 0xFFF;
 }
 
 // Control del motor
