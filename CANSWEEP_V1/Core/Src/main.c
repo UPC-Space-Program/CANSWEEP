@@ -72,6 +72,8 @@ volatile uint32_t pwm_rising = 0; // Marca de tiempo del flanco de subida del pu
 volatile uint32_t pwm_width = 0; // Duración del pulso (ancho), calculado con input capture
 
 Encoder_Handle_t encoder_handle;
+
+volatile uint8_t encoder_read_flag = 0;
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -220,6 +222,13 @@ int main(void)
   /* USER CODE BEGIN WHILE */
   while (1)
   {
+
+	  if (encoder_read_flag) //check si s'ha de fer una lectura de l'encoder
+	  {
+		  encoder_read_flag = 0; //desactivem el flag
+		  Encoder_UpdatePosition(&encoder_handle, &hi2c1);  // lectura encoder
+	  }
+
 	  // CAN send commands test
 	  strcpy((char*)TxData, "PING");
 	  HAL_FDCAN_AddMessageToTxFifoQ(&hfdcan2, &TxHeader, TxData);
@@ -1110,7 +1119,7 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
     if (htim->Instance == TIM3)
     {
         // Update encoder position at 500Hz
-        Encoder_UpdatePosition(&encoder_handle, &hi2c1);
+    	encoder_read_flag = 1;
     }
 }
 
