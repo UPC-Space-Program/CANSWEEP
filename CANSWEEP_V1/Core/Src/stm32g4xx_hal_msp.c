@@ -670,11 +670,11 @@ void HAL_TIM_MspPostInit(TIM_HandleTypeDef* htim)
   if(htim->Instance==TIM1)
   {
     /* USER CODE BEGIN TIM1_MspPostInit 0 */
-
+    // PA10 is configured as TIM1_CH3 for STEP signal generation
     /* USER CODE END TIM1_MspPostInit 0 */
     __HAL_RCC_GPIOA_CLK_ENABLE();
     /**TIM1 GPIO Configuration
-    PA10     ------> TIM1_CH3
+    PA10     ------> TIM1_CH3 (STEP signal for stepper motor)
     */
     GPIO_InitStruct.Pin = STEP_AIN1_Pin;
     GPIO_InitStruct.Mode = GPIO_MODE_AF_PP;
